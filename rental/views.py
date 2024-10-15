@@ -17,9 +17,14 @@ from django.db.models import Q
 
 from datetime import datetime
 
+from .permissions import IsAdminOrReadOnly , IsOwnerOrAdmin
+
+from rest_framework.permissions import IsAuthenticated
+
 class CarViewSet(viewsets.ModelViewSet):
     queryset = Car.objects.all()
     serializer_class = CarSerializer
+    permission_classes = [IsAdminOrReadOnly]
 
     def get_queryset(self):
         # Retrieve the start_date and end_date from the request query parameters
@@ -50,6 +55,15 @@ class CarViewSet(viewsets.ModelViewSet):
 class ReservationViewSet(viewsets.ModelViewSet):
     queryset = Reservation.objects.all()
     serializer_class = ReservationSerializer
+    permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
+
+    def get_queryset(self):
+        # If the user is an admin, return all reservations
+        if self.request.user.is_staff:
+            return Reservation.objects.all()
+
+        # Otherwise, return only reservations for the logged-in user
+        return Reservation.objects.filter(customer=self.request.user)
 
     def perform_create(self, serializer):
         # Add the username automatically to reserve
