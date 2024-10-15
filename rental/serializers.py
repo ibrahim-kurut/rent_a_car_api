@@ -4,6 +4,7 @@ from .models import Car, Reservation
 
 from django.contrib.auth.models import User
 
+from datetime import timedelta
 
 class CarSerializer(serializers.ModelSerializer):
     class Meta:
@@ -25,6 +26,33 @@ class ReservationSerializer(serializers.ModelSerializer):
         # Multiply the number of days by the rent_per_day of the car
         total_price = num_days * obj.car.rent_per_day
         return total_price
+
+
+
+    def validate(self, data):
+        car = data['car']
+        start_date = data['start_date']
+        end_date = data['end_date']
+        
+        # Search for reservations to the same car
+        overlapping_reservations = Reservation.objects.filter(
+            car=car,
+            end_date__gte=start_date  # Check that other reservations are finished or on the new start date
+        )
+
+        # If there are previous reservations, the reservation is prohibited
+        if overlapping_reservations.exists():
+            # Get the last reservation for the same car
+            last_reservation = overlapping_reservations.order_by('-end_date').first()
+
+            # Check that the new reservation begins after the end of the last reservation
+            if start_date <= last_reservation.end_date:
+                raise serializers.ValidationError({
+                    'start_date': f"This car is already reserved until {last_reservation.end_date}. You can start your reservation from {last_reservation.end_date + timedelta(days=1)}."
+                })
+
+       # If everything is fine, the data is passed
+        return data
 
 
 class UserSerializer(serializers.ModelSerializer):
